@@ -1,12 +1,15 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-bgtd-plugin",
 	"version": "1.0.0",
 	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
+		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"deploy": "npm run build && ./scripts/copy-to-vault.sh",
+    	"deploy:build": "npm run build",
+    	"deploy:copy": "./scripts/copy-to-vault.sh"
 	},
 	"keywords": [],
 	"author": "",

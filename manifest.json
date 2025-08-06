@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-bgtd-plugin",
+	"name": "BGTD",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Simple GTD for Obsidian tasks",
+	"author": "Ben Chow",
+	"authorUrl": "https://github.com/benchow",
+	"fundingUrl": "https://github.com/benchow",
 	"isDesktopOnly": false
 }
