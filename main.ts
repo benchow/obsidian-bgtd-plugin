@@ -12,6 +12,31 @@ export default class BGTDPlugin extends Plugin {
         );
     }
 
+    /**
+     * Ensures a file exists at the given path, creating it with initial content if it doesn't exist.
+     * @param filePath - The path of the file to ensure exists
+     * @param initialContent - The initial content to write if the file needs to be created
+     * @returns The TFile object for the file (either existing or newly created)
+     */
+    async ensureFileExists(filePath: string, initialContent: string = ""): Promise<TFile> {
+        let file = this.app.vault.getAbstractFileByPath(filePath);
+        
+        if (file instanceof TFile) {
+            return file;
+        }
+        
+        // File doesn't exist, create it
+        console.log(`Creating file: ${filePath}`);
+        await this.app.vault.create(filePath, initialContent);
+        
+        const newFile = this.app.vault.getAbstractFileByPath(filePath);
+        if (newFile instanceof TFile) {
+            return newFile;
+        } else {
+            throw new Error(`Failed to create file: ${filePath}`);
+        }
+    }
+
     async handleFileChange(file: TFile) {
         if (file.extension !== "md") return;
 
@@ -19,121 +44,150 @@ export default class BGTDPlugin extends Plugin {
             const content = await this.app.vault.read(file);
             const lines = content.split("\n");
             
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                
-                // Check for completed tasks (not in " - Done" files)
-                if (line.startsWith("- [x]") && !file.basename.endsWith(" - Done")) {
-                    const taskText = line.replace("- [x]", "").trim();
-                    console.log("✅ Task completed:", taskText);
-                    await this.moveTaskToDoneFile(taskText, file);
-                    return; // Exit after processing one task
-                }
-                
-                // Check for unchecked tasks (in " - Done" files)
-                if (line.startsWith("- [ ]") && file.basename.endsWith(" - Done")) {
-                    const taskText = line.replace("- [ ]", "").trim();
-                    console.log("❌ Task unchecked in _Done file:", taskText);
-                    await this.moveTaskToOriginalFile(taskText, file);
-                    return; // Exit after processing one task
-                }
-            }
+            // Collect all tasks that need to be moved
+            const tasksToMove = this.collectTasksToMove(lines, file);
+            
+            if (tasksToMove.length === 0) return;
+            
+            // Batch process all tasks
+            await this.batchMoveTasks(tasksToMove, file);
+            
         } catch (error) {
             console.error("Error handling file change:", error);
         }
     }
 
-    async moveTaskToDoneFile(task: string, file: TFile) {
+    /**
+     * Collects all tasks that need to be moved from the file
+     */
+    collectTasksToMove(lines: string[], file: TFile): Array<{task: string, type: 'completed' | 'unchecked'}> {
+        const tasks: Array<{task: string, type: 'completed' | 'unchecked'}> = [];
+        
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            
+            // Check for completed tasks (not in " - Done" files)
+            if (trimmedLine.startsWith("- [x]") && !file.basename.endsWith(" - Done")) {
+                const taskText = trimmedLine.replace("- [x]", "").trim();
+                tasks.push({ task: taskText, type: 'completed' });
+            }
+            
+            // Check for unchecked tasks (in " - Done" files)
+            if (trimmedLine.startsWith("- [ ]") && file.basename.endsWith(" - Done")) {
+                const taskText = trimmedLine.replace("- [ ]", "").trim();
+                tasks.push({ task: taskText, type: 'unchecked' });
+            }
+        }
+        
+        return tasks;
+    }
+
+    /**
+     * Batch processes all tasks that need to be moved
+     */
+    async batchMoveTasks(tasks: Array<{task: string, type: 'completed' | 'unchecked'}>, file: TFile) {
+        if (tasks.length === 0) return;
+        
+        console.log(`Processing ${tasks.length} tasks to move`);
+        
+        // Group tasks by type
+        const completedTasks = tasks.filter(t => t.type === 'completed') as Array<{task: string, type: 'completed'}>;
+        const uncheckedTasks = tasks.filter(t => t.type === 'unchecked') as Array<{task: string, type: 'unchecked'}>;
+        
+        // Process completed tasks
+        if (completedTasks.length > 0) {
+            await this.batchMoveCompletedTasks(completedTasks, file);
+        }
+        
+        // Process unchecked tasks
+        if (uncheckedTasks.length > 0) {
+            await this.batchMoveUncheckedTasks(uncheckedTasks, file);
+        }
+    }
+
+    /**
+     * Batch moves completed tasks to the done file
+     */
+    async batchMoveCompletedTasks(tasks: Array<{task: string, type: 'completed'}>, file: TFile) {
         try {
-            console.log(`Moving completed task to _Done file: "${task}"`);
+            console.log(`Moving ${tasks.length} completed tasks to _Done file`);
             
             // Create the " - Done" file path
             const doneFilePath = file.path.replace(/\.md$/, " - Done.md");
             console.log(`Done file path: ${doneFilePath}`);
             
-            // Remove the completed task from the original file
+            // Remove all completed tasks from the original file
             const originalContent = await this.app.vault.read(file);
             const lines = originalContent.split("\n");
+            const taskTexts = tasks.map(t => t.task);
+            
             const filteredLines = lines.filter(line => {
                 const trimmedLine = line.trim();
-                return !trimmedLine.startsWith("- [x]") || 
-                       trimmedLine.replace("- [x]", "").trim() !== task;
+                if (!trimmedLine.startsWith("- [x]")) return true;
+                
+                const taskText = trimmedLine.replace("- [x]", "").trim();
+                return !taskTexts.includes(taskText);
             });
-            const newContent = filteredLines.join("\n");
             
+            const newContent = filteredLines.join("\n");
             console.log(`Updating original file with ${filteredLines.length} lines`);
             await this.app.vault.modify(file, newContent);
 
-            // Add the completed task to the "_Done" file
-            const doneFile = this.app.vault.getAbstractFileByPath(doneFilePath);
-            const completedTaskLine = `- [x] ${task}`;
+            // Ensure the done file exists and add all completed tasks
+            const doneFile = await this.ensureFileExists(doneFilePath);
+            const completedTaskLines = tasks.map(t => `- [x] ${t.task}`);
             
-            if (doneFile instanceof TFile) {
-                // File exists, prepend the task
-                const currentContent = await this.app.vault.read(doneFile);
-                const newDoneContent = completedTaskLine + "\n" + currentContent;
-                await this.app.vault.modify(doneFile, newDoneContent);
-                console.log(`Updated existing done file: ${doneFilePath}`);
-            } else {
-                // File doesn't exist, create it
-                await this.app.vault.create(doneFilePath, completedTaskLine + "\n");
-                console.log(`Created new done file: ${doneFilePath}`);
-            }
-
-            console.log(`✅ Successfully moved completed task to ${doneFilePath}`);
+            // Prepend all tasks to the existing content
+            const currentContent = await this.app.vault.read(doneFile);
+            const newDoneContent = completedTaskLines.join("\n") + "\n" + currentContent;
+            await this.app.vault.modify(doneFile, newDoneContent);
+            
+            console.log(`✅ Successfully moved ${tasks.length} completed tasks to ${doneFilePath}`);
         } catch (error) {
-            console.error("Error moving task to done file:", error);
+            console.error("Error moving completed tasks to done file:", error);
         }
     }
 
-    async moveTaskToOriginalFile(task: string, file: TFile) {
+    /**
+     * Batch moves unchecked tasks back to the original file
+     */
+    async batchMoveUncheckedTasks(tasks: Array<{task: string, type: 'unchecked'}>, file: TFile) {
         try {
-            console.log(`Moving unchecked task back to original file: "${task}"`);
+            console.log(`Moving ${tasks.length} unchecked tasks back to original file`);
             
-            // Find the original file
+            // Find the original file path
             const originalFilePath = file.path.replace(" - Done.md", ".md");
-            const originalFile = this.app.vault.getAbstractFileByPath(originalFilePath);
-            
             console.log(`Looking for original file: ${originalFilePath}`);
             
-            if (originalFile instanceof TFile) {
-                // Original file exists, proceed normally
-                await this.performTaskMove(task, file, originalFile);
-            } else {
-                // Original file doesn't exist, create it
-                console.log(`Original file not found, creating: ${originalFilePath}`);
-                await this.app.vault.create(originalFilePath, "");
-                const newOriginalFile = this.app.vault.getAbstractFileByPath(originalFilePath);
-                if (newOriginalFile instanceof TFile) {
-                    await this.performTaskMove(task, file, newOriginalFile);
-                } else {
-                    console.error(`Failed to create original file: ${originalFilePath}`);
-                }
-            }
+            // Ensure the original file exists
+            const originalFile = await this.ensureFileExists(originalFilePath);
+            
+            // Remove all unchecked tasks from the done file
+            const doneContent = await this.app.vault.read(file);
+            const lines = doneContent.split("\n");
+            const taskTexts = tasks.map(t => t.task);
+            
+            const filteredLines = lines.filter(line => {
+                const trimmedLine = line.trim();
+                if (!trimmedLine.startsWith("- [ ]")) return true;
+                
+                const taskText = trimmedLine.replace("- [ ]", "").trim();
+                return !taskTexts.includes(taskText);
+            });
+            
+            const newDoneContent = filteredLines.join("\n");
+            await this.app.vault.modify(file, newDoneContent);
+
+            // Add all unchecked tasks to the top of the original file
+            const originalContent = await this.app.vault.read(originalFile);
+            const uncheckedTaskLines = tasks.map(t => `- [ ] ${t.task}`);
+            const newOriginalContent = uncheckedTaskLines.join("\n") + "\n" + originalContent;
+            await this.app.vault.modify(originalFile, newOriginalContent);
+
+            console.log(`❌ Successfully moved ${tasks.length} unchecked tasks back to ${originalFile.path}`);
         } catch (error) {
-            console.error("Error moving task to original file:", error);
+            console.error("Error moving unchecked tasks to original file:", error);
         }
-    }
-
-    async performTaskMove(task: string, doneFile: TFile, originalFile: TFile) {
-        // Remove the unchecked task from the "_Done" file
-        const doneContent = await this.app.vault.read(doneFile);
-        const lines = doneContent.split("\n");
-        const filteredLines = lines.filter(line => {
-            const trimmedLine = line.trim();
-            return !trimmedLine.startsWith("- [ ]") || 
-                   trimmedLine.replace("- [ ]", "").trim() !== task;
-        });
-        const newDoneContent = filteredLines.join("\n");
-        await this.app.vault.modify(doneFile, newDoneContent);
-
-        // Add the unchecked task to the top of the original file
-        const originalContent = await this.app.vault.read(originalFile);
-        const uncheckedTaskLine = `- [ ] ${task}`;
-        const newOriginalContent = uncheckedTaskLine + "\n" + originalContent;
-        await this.app.vault.modify(originalFile, newOriginalContent);
-
-        console.log(`❌ Successfully moved unchecked task back to ${originalFile.path}`);
     }
 
     onunload() {
