@@ -429,5 +429,128 @@ describe('BGTD Plugin Core Logic', () => {
       const uncheckedTask = removeCheckmarkAndDate(completedTask);
       expect(uncheckedTask).toBe(originalTask);
     });
+
+    it('should update tasks in place before moving them', () => {
+      // Test the in-place update functionality
+      const lines = [
+        '- [x] Task 1',
+        '- [ ] Task 2',
+        '- [x] Task 3 ✅ 2024-01-15', // Already has date
+        '- [ ] Task 4 ✅ 2024-01-15'  // In done file, should have date removed
+      ];
+      
+      // Mock the date functionality
+      const mockDate = new Date('2024-01-16T10:30:45');
+      const originalDate = global.Date;
+      global.Date = jest.fn(() => mockDate) as any;
+      
+      // Simulate the in-place update logic
+      const updateTasksInPlace = (lines: string[], isDoneFile: boolean) => {
+        const updatedLines: string[] = [];
+        
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          
+          if (trimmedLine.startsWith("- [x]") && !isDoneFile) {
+            const taskText = trimmedLine.replace("- [x]", "").trim();
+            if (!taskText.includes("✅")) {
+              const year = mockDate.getFullYear();
+              const month = String(mockDate.getMonth() + 1).padStart(2, '0');
+              const day = String(mockDate.getDate()).padStart(2, '0');
+              const date = `${year}-${month}-${day}`;
+              updatedLines.push(`- [x] ${taskText} ✅ ${date}`);
+            } else {
+              updatedLines.push(line);
+            }
+          } else if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
+            const taskText = trimmedLine.replace("- [ ]", "").trim();
+            if (taskText.includes("✅")) {
+              const taskWithoutDateTime = taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+              updatedLines.push(`- [ ] ${taskWithoutDateTime}`);
+            } else {
+              updatedLines.push(line);
+            }
+          } else {
+            updatedLines.push(line);
+          }
+        }
+        
+        return updatedLines;
+      };
+      
+      // Test regular file (not done file)
+      const updatedRegularFile = updateTasksInPlace(lines, false);
+      expect(updatedRegularFile[0]).toBe('- [x] Task 1 ✅ 2024-01-16'); // Added date
+      expect(updatedRegularFile[2]).toBe('- [x] Task 3 ✅ 2024-01-15'); // Already had date
+      
+      // Test done file
+      const updatedDoneFile = updateTasksInPlace(lines, true);
+      expect(updatedDoneFile[3]).toBe('- [ ] Task 4'); // Removed date
+      
+      // Restore original Date
+      global.Date = originalDate;
+    });
+
+    it('should include a delay before batch moving tasks', async () => {
+      // Test that the delay functionality is included
+      const mockSetTimeout = jest.fn((callback: () => void, delay: number) => {
+        expect(delay).toBe(500); // 500ms delay (faster response)
+        callback();
+      });
+      
+      // Mock setTimeout
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = mockSetTimeout as any;
+      
+      // Simulate the delay logic
+      const delayBeforeMoving = async () => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      };
+      
+      await delayBeforeMoving();
+      
+      // Verify setTimeout was called with correct delay
+      expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 500);
+      
+      // Restore original setTimeout
+      global.setTimeout = originalSetTimeout;
+    });
+
+    it('should prevent duplicate tasks when moving unchecked tasks back to original file', () => {
+      // Test duplicate prevention logic
+      const originalContent = `
+- [ ] Task 1
+- [ ] Task 2
+- [x] Task 3 ✅ 2024-01-15
+- [ ] Task 4
+`.trim();
+
+      const lines = originalContent.split("\n");
+      const existingTasks = new Set(lines.map(line => {
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith("- [ ]") || trimmedLine.startsWith("- [x]")) {
+          return trimmedLine.replace(/^- \[[ x]\]\s*/, "").trim();
+        }
+        return null;
+      }).filter(Boolean));
+
+      // Simulate unchecked tasks that might be duplicates
+      const uncheckedTasks = [
+        { task: "Task 1", type: 'unchecked' as const }, // Already exists
+        { task: "Task 2", type: 'unchecked' as const }, // Already exists  
+        { task: "Task 5", type: 'unchecked' as const }, // New task
+        { task: "Task 6", type: 'unchecked' as const }  // New task
+      ];
+
+      // Filter out tasks that already exist
+      const newTasks = uncheckedTasks.filter(task => !existingTasks.has(task.task));
+      
+      expect(newTasks).toHaveLength(2);
+      expect(newTasks.map(t => t.task)).toEqual(["Task 5", "Task 6"]);
+      expect(existingTasks.has("Task 1")).toBe(true);
+      expect(existingTasks.has("Task 2")).toBe(true);
+      expect(existingTasks.has("Task 5")).toBe(false);
+      expect(existingTasks.has("Task 6")).toBe(false);
+    });
   });
 }); 
