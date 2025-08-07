@@ -4,7 +4,7 @@
 VAULT_PATH="/Users/benchow/Library/Mobile Documents/iCloud~md~obsidian/Documents/development/"
 
 # Plugin name
-PLUGIN_NAME="obsidian-ben-tasks-plugin"
+PLUGIN_NAME="obsidian-bgtd-plugin"
 
 # Create plugin directory if it doesn't exist
 PLUGIN_DIR="${VAULT_PATH}.obsidian/plugins/${PLUGIN_NAME}"
@@ -14,20 +14,18 @@ mkdir -p "$PLUGIN_DIR"
 echo "Copying plugin files to: $PLUGIN_DIR"
 
 # Check if files exist in current directory (running from root)
-if [ -f "main.js" ] && [ -f "styles.css" ] && [ -f "manifest.json" ]; then
+if [ -f "main.js" ] && [ -f "manifest.json" ]; then
     echo "  Copying from current directory..."
     cp main.js "$PLUGIN_DIR/"
-    cp styles.css "$PLUGIN_DIR/"
     cp manifest.json "$PLUGIN_DIR/"
 # Check if files exist in parent directory (running from scripts)
-elif [ -f "../main.js" ] && [ -f "../styles.css" ] && [ -f "../manifest.json" ]; then
+elif [ -f "../main.js" ] && [ -f "../manifest.json" ]; then
     echo "  Copying from parent directory..."
     cp ../main.js "$PLUGIN_DIR/"
-    cp ../styles.css "$PLUGIN_DIR/"
     cp ../manifest.json "$PLUGIN_DIR/"
 else
     echo "❌ Error: Could not find plugin files to copy!"
-    echo "  Looking for: main.js, styles.css, manifest.json"
+    echo "  Looking for: main.js, manifest.json"
     echo "  Current directory: $(pwd)"
     echo "  Files in current directory:"
     ls -la *.js *.css *.json 2>/dev/null || echo "    No matching files found"
