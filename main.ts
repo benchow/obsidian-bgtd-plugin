@@ -37,6 +37,38 @@ export default class BGTDPlugin extends Plugin {
         }
     }
 
+    /**
+     * Gets the current date in yyyy-mm-dd format
+     * @returns Formatted date string
+     */
+    getCurrentDate(): string {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * Adds green checkmark emoji and date to a task text
+     * @param taskText - The original task text
+     * @returns Task text with green checkmark emoji and date appended
+     */
+    addDateTimeToTask(taskText: string): string {
+        const date = this.getCurrentDate();
+        return `${taskText} ✅ ${date}`;
+    }
+
+    /**
+     * Removes green checkmark emoji and date from a task text
+     * @param taskText - The task text that may contain green checkmark emoji and date
+     * @returns Task text with green checkmark emoji and date removed
+     */
+    removeDateTimeFromTask(taskText: string): string {
+        // Remove green checkmark emoji and date pattern: ✅ YYYY-MM-DD
+        return taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+    }
+
     async handleFileChange(file: TFile) {
         if (file.extension !== "md") return;
 
@@ -69,13 +101,17 @@ export default class BGTDPlugin extends Plugin {
             // Check for completed tasks (not in " - Done" files)
             if (trimmedLine.startsWith("- [x]") && !file.basename.endsWith(" - Done")) {
                 const taskText = trimmedLine.replace("- [x]", "").trim();
-                tasks.push({ task: taskText, type: 'completed' });
+                // Add date and time to completed tasks
+                const taskWithDateTime = this.addDateTimeToTask(taskText);
+                tasks.push({ task: taskWithDateTime, type: 'completed' });
             }
             
             // Check for unchecked tasks (in " - Done" files)
             if (trimmedLine.startsWith("- [ ]") && file.basename.endsWith(" - Done")) {
                 const taskText = trimmedLine.replace("- [ ]", "").trim();
-                tasks.push({ task: taskText, type: 'unchecked' });
+                // Remove date and time from unchecked tasks
+                const taskWithoutDateTime = this.removeDateTimeFromTask(taskText);
+                tasks.push({ task: taskWithoutDateTime, type: 'unchecked' });
             }
         }
         
@@ -126,7 +162,9 @@ export default class BGTDPlugin extends Plugin {
                 if (!trimmedLine.startsWith("- [x]")) return true;
                 
                 const taskText = trimmedLine.replace("- [x]", "").trim();
-                return !taskTexts.includes(taskText);
+                // Compare without date/time for removal
+                const taskWithoutDateTime = this.removeDateTimeFromTask(taskText);
+                return !taskTexts.map(t => this.removeDateTimeFromTask(t)).includes(taskWithoutDateTime);
             });
             
             const newContent = filteredLines.join("\n");
@@ -172,7 +210,9 @@ export default class BGTDPlugin extends Plugin {
                 if (!trimmedLine.startsWith("- [ ]")) return true;
                 
                 const taskText = trimmedLine.replace("- [ ]", "").trim();
-                return !taskTexts.includes(taskText);
+                // Compare without date/time for removal
+                const taskWithoutDateTime = this.removeDateTimeFromTask(taskText);
+                return !taskTexts.map(t => this.removeDateTimeFromTask(t)).includes(taskWithoutDateTime);
             });
             
             const newDoneContent = filteredLines.join("\n");

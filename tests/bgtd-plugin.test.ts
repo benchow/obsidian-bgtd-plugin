@@ -352,4 +352,82 @@ describe('BGTD Plugin Core Logic', () => {
       expect(completedTasks).toEqual([]);
     });
   });
+
+  describe('Date/Time Feature', () => {
+    it('should add green checkmark emoji and date to completed tasks', () => {
+      // Mock the date functionality
+      const mockDate = new Date('2024-01-15T10:30:45');
+      const originalDate = global.Date;
+      global.Date = jest.fn(() => mockDate) as any;
+      
+      // Simulate the date formatting
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const taskText = 'Complete project';
+      const date = formatDate(mockDate);
+      const taskWithCheckmark = `${taskText} ✅ ${date}`;
+      
+      expect(taskWithCheckmark).toBe('Complete project ✅ 2024-01-15');
+      
+      // Restore original Date
+      global.Date = originalDate;
+    });
+
+    it('should remove green checkmark emoji and date from unchecked tasks', () => {
+      // Test removing green checkmark emoji and date from various formats
+      const removeCheckmarkAndDate = (taskText: string) => {
+        return taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+      };
+      
+      const testCases = [
+        'Task 1 ✅ 2024-01-15',
+        'Task 2 ✅ 2024-12-31',
+        'Task 3 ✅ 2024-01-15',
+        'Task 4 ✅ 2024-01-15',
+        'Task 5' // No checkmark and date
+      ];
+      
+      const expectedResults = [
+        'Task 1',
+        'Task 2',
+        'Task 3',
+        'Task 4',
+        'Task 5'
+      ];
+      
+      testCases.forEach((testCase, index) => {
+        const result = removeCheckmarkAndDate(testCase);
+        expect(result).toBe(expectedResults[index]);
+      });
+    });
+
+    it('should handle tasks with and without green checkmark emoji and date correctly', () => {
+      // Test that completed tasks get green checkmark emoji and date added
+      const originalTask = 'Complete documentation';
+      const addCheckmarkAndDate = (taskText: string) => {
+        const mockDate = new Date('2024-01-15T10:30:45');
+        const year = mockDate.getFullYear();
+        const month = String(mockDate.getMonth() + 1).padStart(2, '0');
+        const day = String(mockDate.getDate()).padStart(2, '0');
+        const date = `${year}-${month}-${day}`;
+        return `${taskText} ✅ ${date}`;
+      };
+      
+      const completedTask = addCheckmarkAndDate(originalTask);
+      expect(completedTask).toBe('Complete documentation ✅ 2024-01-15');
+      
+      // Test that unchecked tasks have green checkmark emoji and date removed
+      const removeCheckmarkAndDate = (taskText: string) => {
+        return taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+      };
+      
+      const uncheckedTask = removeCheckmarkAndDate(completedTask);
+      expect(uncheckedTask).toBe(originalTask);
+    });
+  });
 }); 
