@@ -1,0 +1,17 @@
+# Obsidian BGTD Plugin Deployment Configuration
+# Copy this file to 'deploy.config' and update the vault paths below
+# Add one vault path per line (no spaces around the = sign)
+
+# Example vault paths (uncomment and modify as needed):
+# /Users/username/Documents/Obsidian/MyVault/
+# /Users/username/Library/Mobile Documents/iCloud~md~obsidian/Documents/WorkVault/
+# /Users/username/Dropbox/Obsidian/PersonalVault/
+
+# Default development vault (uncomment to use):
+# /Users/benchow/Library/Mobile Documents/iCloud~md~obsidian/Documents/development/
+
+# Instructions:
+# 1. Copy this file to 'deploy.config'
+# 2. Uncomment and modify the vault paths you want to deploy to
+# 3. Run 'npm run deploy' to deploy to all specified vaults
+# 4. Each vault path should end with a forward slash (/)

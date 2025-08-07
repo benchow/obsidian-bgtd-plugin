@@ -135,6 +135,59 @@ npm run dev
 npm run build
 ```
 
+### Deployment
+
+The plugin includes a flexible deployment system that can deploy to multiple Obsidian vaults:
+
+#### Quick Setup
+```bash
+# Set up deployment configuration
+npm run deploy:setup
+
+# Edit the created deploy.config file with your vault paths
+# Then deploy to all configured vaults
+npm run deploy
+```
+
+#### Manual Deployment
+```bash
+# Build the plugin
+npm run build
+
+# Deploy to configured vaults
+npm run deploy:copy
+
+# Or deploy with build step
+npm run deploy
+```
+
+#### Deployment Configuration
+
+1. **Create configuration file:**
+   ```bash
+   npm run deploy:setup
+   ```
+
+2. **Edit `deploy.config`:**
+   ```
+   /Users/username/Documents/Obsidian/MyVault/
+   /Users/username/Documents/Obsidian/WorkVault/
+   /Users/username/Dropbox/Obsidian/PersonalVault/
+   ```
+
+3. **Deploy to all vaults:**
+   ```bash
+   npm run deploy
+   ```
+
+#### Available Deployment Scripts
+
+- `npm run deploy` - Build and deploy to all configured vaults
+- `npm run deploy:build` - Build the plugin only
+- `npm run deploy:copy` - Deploy to vaults (requires build first)
+- `npm run deploy:setup` - Create deployment configuration file
+- `npm run deploy:test` - Test build without deploying
+
 ## Advanced Features
 
 ### Batch Processing

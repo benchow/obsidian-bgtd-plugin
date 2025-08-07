@@ -10,6 +10,8 @@
 		"deploy": "npm run build && ./scripts/copy-to-vault.sh",
 		"deploy:build": "npm run build",
 		"deploy:copy": "./scripts/copy-to-vault.sh",
+		"deploy:setup": "cp deploy.config.example deploy.config && echo '✅ Created deploy.config - please edit it with your vault paths'",
+		"deploy:test": "npm run build && echo '✅ Build successful - ready for deployment'",
 		"test": "jest",
 		"test:watch": "jest --watch"
 	},
