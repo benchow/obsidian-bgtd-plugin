@@ -2,7 +2,7 @@
 	"id": "obsidian-bgtd-plugin",
 	"name": "BGTD",
 	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
+	"minAppVersion": "1.8.10",
 	"description": "Simple GTD for Obsidian tasks",
 	"author": "Ben Chow",
 	"authorUrl": "https://github.com/benchow",
