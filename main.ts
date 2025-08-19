@@ -279,7 +279,6 @@ export default class BGTDPlugin extends Plugin {
                 const datestampElement = document.createElement('span');
                 datestampElement.textContent = ` ✅ ${date}`;
                 datestampElement.style.color = '#22c55e'; // Green color for checkmark
-                datestampElement.className = 'bgtd-datestamp'; // Add class for easier identification
                 
                 // Find the task text content area - look for the actual text, not the container
                 // We want to append after the task text, not before the checkbox
@@ -293,8 +292,7 @@ export default class BGTDPlugin extends Plugin {
                     const textElements = Array.from(taskListItem.querySelectorAll('*')).filter(el => 
                         el.textContent && 
                         el.textContent.trim() && 
-                        !el.classList.contains('task-list-item-checkbox') &&
-                        !el.classList.contains('bgtd-datestamp')
+                        !el.classList.contains('task-list-item-checkbox')
                     );
                     
                     if (textElements.length > 0) {
@@ -313,13 +311,18 @@ export default class BGTDPlugin extends Plugin {
             }
         } else {
             // Task is being unchecked - remove datestamp from DOM if present
-            // Only remove our specifically marked datestamp element
-            const datestampElement = taskListItem.querySelector('.bgtd-datestamp');
-            if (datestampElement) {
-                datestampElement.remove();
-                console.log('Removed datestamp from DOM');
+            // Look for the cm-list-1 span that contains the task text
+            const taskTextSpan = taskListItem.querySelector('.cm-list-1');
+            if (taskTextSpan && taskTextSpan.textContent) {
+                const currentText = taskTextSpan.textContent;
+                // Remove the datestamp portion that starts with checkmark emoji
+                const cleanedText = currentText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+                
+                if (cleanedText !== currentText) {
+                    taskTextSpan.textContent = cleanedText;
+                    console.log('Removed datestamp from task text:', cleanedText);
+                }
             }
-            // Remove the aggressive fallback removal that was causing DOM corruption
         }
     }
 
