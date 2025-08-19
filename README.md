@@ -1,3 +1,5 @@
+![Intro](introvideo.mov)
+
 # Obsidian BGTD Plugin
 
 A powerful Getting Things Done (GTD) workflow plugin for Obsidian that automatically manages task completion, organization, and provides intelligent date/time tracking with immediate visual feedback.
