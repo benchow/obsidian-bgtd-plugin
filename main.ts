@@ -122,21 +122,13 @@ export default class BGTDPlugin extends Plugin {
                 continue;
             }
             
-            // Check for unchecked tasks (in " - Done" files) that have date/time
             if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
-                const taskText = trimmedLine.replace("- [ ]", "").trim();
-                // Remove date/time if it has it
-                if (taskText.includes("✅")) {
-                    const taskWithoutDateTime = this.removeDateTimeFromTask(taskText);
-                    updatedLines.push(`- [ ] ${taskWithoutDateTime}`);
-                } else {
-                    updatedLines.push(line);
-                }
-            } else if (trimmedLine.startsWith("- [ x]") && !isDoneFile) {
-            }
-            
-            // Keep all other lines unchanged
-            else {
+                // remove date/time from unchecked tasks in done file
+                updatedLines.push(this.removeDateTimeFromTask(trimmedLine););
+            } else if (trimmedLine.startsWith("- [x]") && !isDoneFile) {
+                // add date/time to completed tasks in original file
+                updatedLines.push(this.addDateTimeToTask(trimmedLine););
+            } else { // Keep all other lines unchanged
                 updatedLines.push(line);
             }
         }
@@ -224,10 +216,8 @@ export default class BGTDPlugin extends Plugin {
             const doneFile = await this.ensureFileExists(doneFilePath);
             const currentContent = await this.app.vault.read(doneFile);
             
-            // Add completed tasks with datestamps to the top of the done file
-            const completedTaskLines = tasks.map(t => `- [x] ${this.addDateTimeToTask(t.task)}`);
-            const newDoneContent = completedTaskLines.join("\n") + "\n" + currentContent;
             
+            const newDoneContent = completedTaskLines.join("\n") + "\n" + currentContent;
             await this.app.vault.modify(doneFile, newDoneContent);
             console.log(`Added ${completedTaskLines.length} completed tasks to done file`);
             
