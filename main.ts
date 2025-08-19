@@ -96,9 +96,6 @@ export default class BGTDPlugin extends Plugin {
                 await this.app.vault.modify(file, updatedLines.join("\n"));
             }
             
-            // Add a 500ms delay before batch moving tasks (faster response)
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
             // Batch process all tasks
             await this.batchMoveTasks(tasksToMove, file);
             
@@ -135,6 +132,7 @@ export default class BGTDPlugin extends Plugin {
                 } else {
                     updatedLines.push(line);
                 }
+            } else if (trimmedLine.startsWith("- [ x]") && !isDoneFile) {
             }
             
             // Keep all other lines unchanged
