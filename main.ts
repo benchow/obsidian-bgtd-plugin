@@ -2,16 +2,16 @@ import { Plugin, TFile } from "obsidian";
 
 export default class BGTDPlugin extends Plugin {
     private isProcessing = false; // Flag to prevent infinite loops
+    private fileChangeListener: any; // Store reference to file change event listener
 
     async onload() {
         console.log("BGTD Plugin loaded");
 
         // Listen for any Markdown file modification
-        this.registerEvent(
-            this.app.vault.on("modify", (file: TFile) => {
-                this.handleFileChange(file);
-            })
-        );
+        this.fileChangeListener = this.app.vault.on("modify", (file: TFile) => {
+            this.handleFileChange(file);
+        });
+        this.registerEvent(this.fileChangeListener);
     }
 
     /**
@@ -90,12 +90,6 @@ export default class BGTDPlugin extends Plugin {
                 return;
             }
             
-            // Update tasks in place (add/remove date/time) and save immediately
-            const updatedLines = this.updateTasksInPlace(lines, file);
-            if (updatedLines.join("\n") !== content) {
-                await this.app.vault.modify(file, updatedLines.join("\n"));
-            }
-            
             // Batch process all tasks
             await this.batchMoveTasks(tasksToMove, file);
             
@@ -104,36 +98,6 @@ export default class BGTDPlugin extends Plugin {
         } finally {
             this.isProcessing = false; // Always reset flag
         }
-    }
-
-    /**
-     * Updates tasks in place by adding/removing date/time for visual feedback
-     */
-    updateTasksInPlace(lines: string[], file: TFile): string[] {
-        const isDoneFile = file.basename.endsWith(" - Done");
-        const updatedLines: string[] = [];
-        
-        for (const line of lines) {
-            const trimmedLine = line.trim();
-            
-            // Fast path: if line doesn't start with task markers, keep unchanged
-            if (!trimmedLine.startsWith("- [x]") && !trimmedLine.startsWith("- [ ]")) {
-                updatedLines.push(line);
-                continue;
-            }
-            
-            if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
-                // remove date/time from unchecked tasks in done file
-                updatedLines.push(this.removeDateTimeFromTask(trimmedLine););
-            } else if (trimmedLine.startsWith("- [x]") && !isDoneFile) {
-                // add date/time to completed tasks in original file
-                updatedLines.push(this.addDateTimeToTask(trimmedLine););
-            } else { // Keep all other lines unchanged
-                updatedLines.push(line);
-            }
-        }
-        
-        return updatedLines;
     }
 
     /**
@@ -216,7 +180,7 @@ export default class BGTDPlugin extends Plugin {
             const doneFile = await this.ensureFileExists(doneFilePath);
             const currentContent = await this.app.vault.read(doneFile);
             
-            
+            const completedTaskLines = tasks.map(t => `- [x] ${this.addDateTimeToTask(t.task)}`);
             const newDoneContent = completedTaskLines.join("\n") + "\n" + currentContent;
             await this.app.vault.modify(doneFile, newDoneContent);
             console.log(`Added ${completedTaskLines.length} completed tasks to done file`);
@@ -267,5 +231,8 @@ export default class BGTDPlugin extends Plugin {
 
     onunload() {
         console.log("BGTD Plugin unloaded");
+        if (this.fileChangeListener) {
+            this.app.vault.off("modify", this.fileChangeListener);
+        }
     }
 }
