@@ -58,7 +58,8 @@ export default class BGTDPlugin extends Plugin {
      */
     addDateTimeToTask(taskText: string): string {
         const date = this.getCurrentDate();
-        return `${taskText} ✅ ${date}`;
+        const justTheTaskText = this.removeDateTimeFromTask(taskText);
+        return `${justTheTaskText} ✅ ${date}`;
     }
 
     /**
@@ -124,20 +125,8 @@ export default class BGTDPlugin extends Plugin {
                 continue;
             }
             
-            // Check for completed tasks (not in " - Done" files) that don't already have date/time
-            if (trimmedLine.startsWith("- [x]") && !isDoneFile) {
-                const taskText = trimmedLine.replace("- [x]", "").trim();
-                // Only add date/time if it doesn't already have it
-                if (!taskText.includes("✅")) {
-                    const taskWithDateTime = this.addDateTimeToTask(taskText);
-                    updatedLines.push(`- [x] ${taskWithDateTime}`);
-                } else {
-                    updatedLines.push(line);
-                }
-            }
-            
             // Check for unchecked tasks (in " - Done" files) that have date/time
-            else if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
+            if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
                 const taskText = trimmedLine.replace("- [ ]", "").trim();
                 // Remove date/time if it has it
                 if (taskText.includes("✅")) {
@@ -175,17 +164,13 @@ export default class BGTDPlugin extends Plugin {
             // Check for completed tasks (not in " - Done" files)
             if (trimmedLine.startsWith("- [x]") && !isDoneFile) {
                 const taskText = trimmedLine.replace("- [x]", "").trim();
-                // For completed tasks, add date/time to the task being moved
-                const taskWithDateTime = this.addDateTimeToTask(taskText);
-                tasks.push({ task: taskWithDateTime, type: 'completed' });
+                tasks.push({ task: taskText, type: 'completed' });
             }
             
             // Check for unchecked tasks (in " - Done" files)
             if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
                 const taskText = trimmedLine.replace("- [ ]", "").trim();
-                // For unchecked tasks, remove date/time for clean task text
-                const cleanTaskText = this.removeDateTimeFromTask(taskText);
-                tasks.push({ task: cleanTaskText, type: 'unchecked' });
+                tasks.push({ task: taskText, type: 'unchecked' });
             }
         }
         
@@ -229,47 +214,24 @@ export default class BGTDPlugin extends Plugin {
             // Remove all completed tasks from the original file
             const originalContent = await this.app.vault.read(file);
             const lines = originalContent.split("\n");
-            const taskTexts = tasks.map(t => t.task);
             
-            const filteredLines = lines.filter(line => {
-                const trimmedLine = line.trim();
-                if (!trimmedLine.startsWith("- [x]")) return true;
-                
-                const taskText = trimmedLine.replace("- [x]", "").trim();
-                // Compare without date/time for removal (since tasks in collection have date/time)
-                const taskWithoutDateTime = this.removeDateTimeFromTask(taskText);
-                return !taskTexts.map(t => this.removeDateTimeFromTask(t)).includes(taskWithoutDateTime);
-            });
+            // Simply filter out all lines that start with "- [x]" (completed tasks)
+            const filteredLines = lines.filter(line => !line.trim().startsWith("- [x]"));
             
             const newContent = filteredLines.join("\n");
             console.log(`Updating original file with ${filteredLines.length} lines`);
             await this.app.vault.modify(file, newContent);
 
-            // Ensure the done file exists and add all completed tasks (avoiding duplicates)
+            // Ensure the done file exists and add all completed tasks with datestamps
             const doneFile = await this.ensureFileExists(doneFilePath);
             const currentContent = await this.app.vault.read(doneFile);
-            const currentLines = currentContent.split("\n");
-            const existingTasks = new Set(currentLines.map(line => {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith("- [ ]") || trimmedLine.startsWith("- [x]")) {
-                    // Remove date/time for comparison to avoid duplicates with different timestamps
-                    const taskText = trimmedLine.replace(/^- \[[ x]\]\s*/, "").trim();
-                    return this.removeDateTimeFromTask(taskText);
-                }
-                return null;
-            }).filter(Boolean));
             
-            // Only add tasks that don't already exist in the done file (comparing without date/time)
-            const newTasks = tasks.filter(task => !existingTasks.has(this.removeDateTimeFromTask(task.task)));
-            const completedTaskLines = newTasks.map(t => `- [x] ${t.task}`);
+            // Add completed tasks with datestamps to the top of the done file
+            const completedTaskLines = tasks.map(t => `- [x] ${this.addDateTimeToTask(t.task)}`);
+            const newDoneContent = completedTaskLines.join("\n") + "\n" + currentContent;
             
-            if (completedTaskLines.length > 0) {
-                const newDoneContent = completedTaskLines.join("\n") + "\n" + currentContent;
-                await this.app.vault.modify(doneFile, newDoneContent);
-                console.log(`Added ${completedTaskLines.length} new tasks to done file`);
-            } else {
-                console.log(`No new tasks to add (all already exist in done file)`);
-            }
+            await this.app.vault.modify(doneFile, newDoneContent);
+            console.log(`Added ${completedTaskLines.length} completed tasks to done file`);
             
             console.log(`✅ Successfully moved ${tasks.length} completed tasks to ${doneFilePath}`);
         } catch (error) {
@@ -294,43 +256,20 @@ export default class BGTDPlugin extends Plugin {
             // Remove all unchecked tasks from the done file
             const doneContent = await this.app.vault.read(file);
             const lines = doneContent.split("\n");
-            const taskTexts = tasks.map(t => t.task);
             
-            const filteredLines = lines.filter(line => {
-                const trimmedLine = line.trim();
-                if (!trimmedLine.startsWith("- [ ]")) return true;
-                
-                const taskText = trimmedLine.replace("- [ ]", "").trim();
-                // Compare without date/time for removal
-                const taskWithoutDateTime = this.removeDateTimeFromTask(taskText);
-                return !taskTexts.map(t => this.removeDateTimeFromTask(t)).includes(taskWithoutDateTime);
-            });
+            // Simply filter out all lines that start with "- [ ]" (unchecked tasks)
+            const filteredLines = lines.filter(line => !line.trim().startsWith("- [ ]"));
             
             const newDoneContent = filteredLines.join("\n");
             await this.app.vault.modify(file, newDoneContent);
 
-            // Add all unchecked tasks to the top of the original file (avoiding duplicates)
+            // Add all unchecked tasks to the top of the original file
             const originalContent = await this.app.vault.read(originalFile);
-            const originalLines = originalContent.split("\n");
-            const existingTasks = new Set(originalLines.map(line => {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith("- [ ]") || trimmedLine.startsWith("- [x]")) {
-                    return trimmedLine.replace(/^- \[[ x]\]\s*/, "").trim();
-                }
-                return null;
-            }).filter(Boolean));
+            const uncheckedTaskLines = tasks.map(t => `- [ ] ${this.removeDateTimeFromTask(t.task)}`);
+            const newOriginalContent = uncheckedTaskLines.join("\n") + "\n" + originalContent;
             
-            // Only add tasks that don't already exist in the original file
-            const newTasks = tasks.filter(task => !existingTasks.has(task.task));
-            const uncheckedTaskLines = newTasks.map(t => `- [ ] ${t.task}`);
-            
-            if (uncheckedTaskLines.length > 0) {
-                const newOriginalContent = uncheckedTaskLines.join("\n") + "\n" + originalContent;
-                await this.app.vault.modify(originalFile, newOriginalContent);
-                console.log(`Added ${uncheckedTaskLines.length} new tasks to original file`);
-            } else {
-                console.log(`No new tasks to add (all already exist in original file)`);
-            }
+            await this.app.vault.modify(originalFile, newOriginalContent);
+            console.log(`Added ${uncheckedTaskLines.length} unchecked tasks to original file`);
 
             console.log(`❌ Successfully moved ${tasks.length} unchecked tasks back to ${originalFile.path}`);
         } catch (error) {
