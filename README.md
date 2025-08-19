@@ -1,6 +1,6 @@
 # Obsidian BGTD Plugin
 
-A powerful Getting Things Done (GTD) workflow plugin for Obsidian that automatically manages task completion, organization, and provides intelligent date/time tracking.
+A powerful Getting Things Done (GTD) workflow plugin for Obsidian that automatically manages task completion, organization, and provides intelligent date/time tracking with immediate visual feedback.
 
 ## Features
 
@@ -14,39 +14,49 @@ This plugin implements a comprehensive GTD workflow with the following features:
 ### 2. Intelligent Date/Time Tracking
 - **Completed Tasks:** Automatically adds green checkmark emoji and completion date (✅ YYYY-MM-DD)
 - **Unchecked Tasks:** Removes date/time stamps for clean task restoration
-- **Visual Feedback:** See date/time changes immediately when checking/unchecking tasks
-- **500ms Delay:** Brief pause before moving tasks for better user experience
+- **Immediate Visual Feedback:** See date/time changes instantly when checking/unchecking tasks
+- **Smart DOM Updates:** Uses requestAnimationFrame for smooth, coordinated updates
 
-### 3. Automatic Task Movement
+### 3. Click Event Handler
+- **Immediate Response:** Intercepts checkbox clicks to provide instant visual feedback
+- **DOM Updates:** Adds/removes datestamps directly in the DOM without file modification
+- **Non-Intrusive:** Works alongside Obsidian's default checkbox behavior
+- **Smooth Coordination:** Uses requestAnimationFrame to avoid race conditions
+
+### 4. Automatic Task Movement
 When a task is completed:
 - Removes the completed task from the original file
 - Moves it to a corresponding " - Done" file (e.g., `Tasks.md` → `Tasks - Done.md`)
 - If the " - Done" file doesn't exist, it creates it automatically
 - Places completed tasks at the top of the " - Done" file with completion timestamp
 
-### 4. Task Restoration
+### 5. Task Restoration
 When a task in a " - Done" file is unchecked:
 - Removes the task from the " - Done" file
 - Moves it back to the top of the original file
 - Converts it back to an active task (`- [ ]`) without date/time
 - Maintains clean task state for reactivation
 
-### 5. Duplicate Prevention
+### 6. Duplicate Prevention
 - Prevents duplicate tasks in both original and done files
 - Intelligent task comparison that ignores date/time differences
 - Maintains unique task lists across all files
 
-### 6. Performance Optimizations
+### 7. Performance Optimizations
 - Fast-path processing for non-task lines
 - Batch processing for multiple task changes
 - Infinite loop prevention with processing flags
 - Optimized file operations for better responsiveness
+- Race condition prevention with requestAnimationFrame
 
 ## How It Works
 
-The plugin monitors all Markdown files in your vault for changes to task checkboxes. It provides immediate visual feedback and intelligently manages task movement with date/time tracking.
+The plugin uses a dual approach for optimal user experience:
 
-### Enhanced Workflow with Date/Time Tracking
+1. **Click Event Handler**: Provides immediate visual feedback by updating the DOM when checkboxes are clicked
+2. **File Change Monitor**: Processes the actual file changes and moves tasks between files
+
+### Enhanced Workflow with Immediate Feedback
 
 1. **Original file**: `Projects.md`
    ```
@@ -56,8 +66,8 @@ The plugin monitors all Markdown files in your vault for changes to task checkbo
    ```
 
 2. **When you check "Review quarterly reports"**:
-   - **Immediate feedback**: Task updates to `- [x] Review quarterly reports ✅ 2024-01-15`
-   - **After 500ms delay**: Task moves to `Projects - Done.md`
+   - **Immediate feedback**: Task updates to `- [x] Review quarterly reports ✅ 2024-01-15` in the DOM
+   - **File processing**: Task moves to `Projects - Done.md` via the file change handler
    - `Projects.md` becomes:
      ```
      - [ ] Schedule team meeting
@@ -69,8 +79,8 @@ The plugin monitors all Markdown files in your vault for changes to task checkbo
      ```
 
 3. **When you uncheck the completed task in `Projects - Done.md`**:
-   - **Immediate feedback**: Task updates to `- [ ] Review quarterly reports` (date/time removed)
-   - **After 500ms delay**: Task moves back to `Projects.md`
+   - **Immediate feedback**: Task updates to `- [ ] Review quarterly reports` (date/time removed) in the DOM
+   - **File processing**: Task moves back to `Projects.md` via the file change handler
    - `Projects - Done.md` becomes empty (or removes the task)
    - `Projects.md` becomes:
      ```
@@ -81,7 +91,9 @@ The plugin monitors all Markdown files in your vault for changes to task checkbo
 
 ### Technical Implementation
 
-- **In-Place Updates**: Tasks are updated immediately in their current file for visual feedback
+- **Click Handler**: Intercepts checkbox clicks and updates DOM immediately
+- **requestAnimationFrame**: Ensures smooth coordination with Obsidian's updates
+- **File Change Handler**: Monitors file modifications and processes task movement
 - **Batch Processing**: Multiple task changes are processed efficiently in batches
 - **Duplicate Prevention**: Intelligent comparison prevents duplicate tasks across files
 - **Performance Optimized**: Fast-path processing and infinite loop prevention
@@ -105,10 +117,11 @@ The plugin monitors all Markdown files in your vault for changes to task checkbo
 2. **Create tasks** in any Markdown file using the standard format: `- [ ] Task description`
 3. **Check off tasks** as you complete them
    - Tasks will immediately show a green checkmark and completion date: `- [x] Task ✅ 2024-01-15`
-   - After a brief 500ms delay, tasks will move to the corresponding "_Done" file
+   - The visual feedback is instant and doesn't require file processing
+   - Tasks will move to the corresponding "_Done" file automatically
 4. **Reactivate tasks** by unchecking them in the "_Done" file
-   - Tasks will immediately lose their date/time stamp
-   - After a brief delay, they'll move back to the original file as active tasks
+   - Tasks will immediately lose their date/time stamp in the DOM
+   - They'll move back to the original file as active tasks automatically
 5. **View completion history** in your "_Done" files with timestamps
 
 ### Date/Time Format
@@ -190,6 +203,18 @@ npm run deploy
 
 ## Advanced Features
 
+### Click Event Handling
+- Intercepts checkbox clicks before Obsidian processes them
+- Provides immediate visual feedback without waiting for file processing
+- Uses capture phase to ensure our handler runs first
+- Coordinates with Obsidian's updates using requestAnimationFrame
+
+### Race Condition Prevention
+- Uses requestAnimationFrame to coordinate with Obsidian's DOM updates
+- Ensures our changes happen after Obsidian has finished processing
+- Prevents conflicts between our code and Obsidian's default behavior
+- More reliable than arbitrary timeouts
+
 ### Batch Processing
 - Multiple task changes are processed efficiently in a single operation
 - Prevents performance issues when checking/unchecking many tasks at once
@@ -203,6 +228,7 @@ npm run deploy
 - Fast-path processing for non-task lines
 - Infinite loop prevention with processing flags
 - Optimized file operations for better responsiveness
+- Efficient DOM manipulation with minimal reflows
 
 ## Configuration
 
@@ -212,7 +238,7 @@ Currently, the plugin works automatically without any configuration required. Fu
 - Notification settings
 - Backup options
 - Custom date/time formats
-- Adjustable delay timing
+- Adjustable visual feedback timing
 
 ## Troubleshooting
 
@@ -226,7 +252,7 @@ Currently, the plugin works automatically without any configuration required. Fu
 ### Performance Issues
 
 - **Infinite loops**: The plugin includes built-in prevention mechanisms
-- **Slow response**: The 500ms delay is intentional for better UX
+- **Slow response**: Visual feedback is immediate, file processing happens in background
 - **Duplicate tasks**: The plugin automatically prevents duplicates
 
 ### Date/Time Issues
@@ -234,6 +260,12 @@ Currently, the plugin works automatically without any configuration required. Fu
 - **Wrong date format**: Uses ISO format (YYYY-MM-DD) for consistency
 - **Missing timestamps**: Only completed tasks in "_Done" files have timestamps
 - **Visual feedback**: Green checkmark emoji should appear immediately
+
+### Click Handler Issues
+
+- **No immediate feedback**: Check that the plugin is enabled and console for errors
+- **Race conditions**: The plugin uses requestAnimationFrame to prevent these
+- **DOM conflicts**: Ensure you're using the latest version with proper event handling
 
 ## Contributing
 
@@ -246,13 +278,19 @@ MIT License - see LICENSE file for details.
 ## Changelog
 
 ### Latest Version
-- **Date/Time Tracking**: Added green checkmark emoji and completion dates
-- **Visual Feedback**: Immediate in-place updates for better UX
-- **Performance**: 500ms delay and batch processing optimizations
-- **Duplicate Prevention**: Intelligent task comparison across files
-- **Bug Fixes**: Infinite loop prevention and proper task flow
+- **Click Event Handler**: Added immediate visual feedback for checkbox interactions
+- **requestAnimationFrame**: Replaced setTimeout with proper frame-based coordination
+- **Race Condition Prevention**: Better coordination with Obsidian's DOM updates
+- **Immediate Feedback**: Users see datestamp changes instantly
+- **Performance**: Removed 500ms delay, faster task processing
+- **DOM Management**: Cleaner, more reliable DOM manipulation
 
 ### Previous Versions
+- **Date/Time Tracking**: Added green checkmark emoji and completion dates
+- **Visual Feedback**: Immediate in-place updates for better UX
+- **Performance**: Batch processing optimizations
+- **Duplicate Prevention**: Intelligent task comparison across files
+- **Bug Fixes**: Infinite loop prevention and proper task flow
 - Basic task movement between files
 - Automatic "_Done" file creation
 - Task restoration functionality

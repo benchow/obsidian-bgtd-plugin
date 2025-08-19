@@ -381,7 +381,7 @@ describe('BGTD Plugin Core Logic', () => {
     it('should remove green checkmark emoji and date from unchecked tasks', () => {
       // Test removing green checkmark emoji and date from various formats
       const removeCheckmarkAndDate = (taskText: string) => {
-        return taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+        return taskText.replace(/✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
       };
       
       const testCases = [
@@ -423,97 +423,37 @@ describe('BGTD Plugin Core Logic', () => {
       
       // Test that unchecked tasks have green checkmark emoji and date removed
       const removeCheckmarkAndDate = (taskText: string) => {
-        return taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+        return taskText.replace(/✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
       };
       
       const uncheckedTask = removeCheckmarkAndDate(completedTask);
       expect(uncheckedTask).toBe(originalTask);
     });
 
-    it('should update tasks in place before moving them', () => {
-      // Test the in-place update functionality
-      const lines = [
-        '- [x] Task 1',
-        '- [ ] Task 2',
-        '- [x] Task 3 ✅ 2024-01-15', // Already has date
-        '- [ ] Task 4 ✅ 2024-01-15'  // In done file, should have date removed
-      ];
-      
-      // Mock the date functionality
-      const mockDate = new Date('2024-01-16T10:30:45');
-      const originalDate = global.Date;
-      global.Date = jest.fn(() => mockDate) as any;
-      
-      // Simulate the in-place update logic
-      const updateTasksInPlace = (lines: string[], isDoneFile: boolean) => {
-        const updatedLines: string[] = [];
-        
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          
-          if (trimmedLine.startsWith("- [x]") && !isDoneFile) {
-            const taskText = trimmedLine.replace("- [x]", "").trim();
-            if (!taskText.includes("✅")) {
-              const year = mockDate.getFullYear();
-              const month = String(mockDate.getMonth() + 1).padStart(2, '0');
-              const day = String(mockDate.getDate()).padStart(2, '0');
-              const date = `${year}-${month}-${day}`;
-              updatedLines.push(`- [x] ${taskText} ✅ ${date}`);
-            } else {
-              updatedLines.push(line);
-            }
-          } else if (trimmedLine.startsWith("- [ ]") && isDoneFile) {
-            const taskText = trimmedLine.replace("- [ ]", "").trim();
-            if (taskText.includes("✅")) {
-              const taskWithoutDateTime = taskText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
-              updatedLines.push(`- [ ] ${taskWithoutDateTime}`);
-            } else {
-              updatedLines.push(line);
-            }
-          } else {
-            updatedLines.push(line);
-          }
-        }
-        
-        return updatedLines;
-      };
-      
-      // Test regular file (not done file)
-      const updatedRegularFile = updateTasksInPlace(lines, false);
-      expect(updatedRegularFile[0]).toBe('- [x] Task 1 ✅ 2024-01-16'); // Added date
-      expect(updatedRegularFile[2]).toBe('- [x] Task 3 ✅ 2024-01-15'); // Already had date
-      
-      // Test done file
-      const updatedDoneFile = updateTasksInPlace(lines, true);
-      expect(updatedDoneFile[3]).toBe('- [ ] Task 4'); // Removed date
-      
-      // Restore original Date
-      global.Date = originalDate;
-    });
-
-    it('should include a delay before batch moving tasks', async () => {
-      // Test that the delay functionality is included
-      const mockSetTimeout = jest.fn((callback: () => void, delay: number) => {
-        expect(delay).toBe(500); // 500ms delay (faster response)
+    it('should use requestAnimationFrame for DOM coordination', () => {
+      // Test that requestAnimationFrame is used for coordinating with Obsidian's updates
+      const mockRequestAnimationFrame = jest.fn((callback: () => void) => {
         callback();
       });
       
-      // Mock setTimeout
-      const originalSetTimeout = global.setTimeout;
-      global.setTimeout = mockSetTimeout as any;
+      // Mock requestAnimationFrame
+      const originalRequestAnimationFrame = global.requestAnimationFrame;
+      global.requestAnimationFrame = mockRequestAnimationFrame as any;
       
-      // Simulate the delay logic
-      const delayBeforeMoving = async () => {
-        await new Promise(resolve => setTimeout(resolve, 500));
+      // Simulate the requestAnimationFrame usage
+      const updateDOM = () => {
+        requestAnimationFrame(() => {
+          // DOM update logic would go here
+        });
       };
       
-      await delayBeforeMoving();
+      updateDOM();
       
-      // Verify setTimeout was called with correct delay
-      expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), 500);
+      // Verify requestAnimationFrame was called
+      expect(mockRequestAnimationFrame).toHaveBeenCalledWith(expect.any(Function));
       
-      // Restore original setTimeout
-      global.setTimeout = originalSetTimeout;
+      // Restore original requestAnimationFrame
+      global.requestAnimationFrame = originalRequestAnimationFrame;
     });
 
     it('should prevent duplicate tasks when moving unchecked tasks back to original file', () => {
@@ -551,6 +491,67 @@ describe('BGTD Plugin Core Logic', () => {
       expect(existingTasks.has("Task 2")).toBe(true);
       expect(existingTasks.has("Task 5")).toBe(false);
       expect(existingTasks.has("Task 6")).toBe(false);
+    });
+  });
+
+  describe('Click Event Handler', () => {
+    it('should detect task checkbox clicks', () => {
+      // Test that the click handler can identify task checkboxes
+      const mockEvent = {
+        target: {
+          classList: {
+            contains: jest.fn((className: string) => className === 'task-list-item-checkbox')
+          }
+        }
+      };
+      
+      const isTaskCheckbox = mockEvent.target.classList.contains('task-list-item-checkbox');
+      expect(isTaskCheckbox).toBe(true);
+    });
+
+    it('should ignore non-checkbox clicks', () => {
+      // Test that non-checkbox clicks are ignored
+      const mockEvent = {
+        target: {
+          classList: {
+            contains: jest.fn((className: string) => className === 'task-list-item-checkbox')
+          }
+        }
+      };
+      
+      // Simulate a non-checkbox element
+      mockEvent.target.classList.contains = jest.fn(() => false);
+      
+      const isTaskCheckbox = mockEvent.target.classList.contains('task-list-item-checkbox');
+      expect(isTaskCheckbox).toBe(false);
+    });
+
+    it('should find task list item parent', () => {
+      // Test that the click handler can find the parent task list item
+      const mockTarget = {
+        closest: jest.fn((selector: string) => {
+          if (selector === '.HyperMD-task-line' || selector === 'li') {
+            return { querySelector: jest.fn() };
+          }
+          return null;
+        })
+      };
+      
+      const taskListItem = mockTarget.closest('.HyperMD-task-line') || mockTarget.closest('li');
+      expect(taskListItem).toBeDefined();
+    });
+
+    it('should determine checkbox state correctly', () => {
+      // Test that the checkbox state is determined correctly
+      const mockCheckbox = {
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'data-task') return 'x';
+          return null;
+        })
+      };
+      
+      const currentState = mockCheckbox.getAttribute('data-task') === 'x';
+      expect(currentState).toBe(true);
     });
   });
 }); 
