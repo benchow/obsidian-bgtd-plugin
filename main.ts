@@ -316,11 +316,16 @@ export default class BGTDPlugin extends Plugin {
             if (taskTextSpan && taskTextSpan.textContent) {
                 const currentText = taskTextSpan.textContent;
                 // Remove the datestamp portion that starts with checkmark emoji
-                const cleanedText = currentText.replace(/\s+✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
+                const cleanedText = currentText.replace(/✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
                 
                 if (cleanedText !== currentText) {
-                    taskTextSpan.textContent = cleanedText;
-                    console.log('Removed datestamp from task text:', cleanedText);
+                    // Add a small delay to let Obsidian finish its DOM updates
+                    // !HACK: This is a hack to let Obsidian finish its DOM updates
+                    // TODO: Find a better way to do this
+                    setTimeout(() => {
+                        taskTextSpan.textContent = " " + cleanedText;
+                        console.log('Removed datestamp from task text:', cleanedText);
+                    }, 50); // 50ms delay
                 }
             }
         }
