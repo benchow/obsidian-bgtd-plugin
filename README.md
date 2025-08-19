@@ -1,4 +1,4 @@
-![Intro](introvideo.mov)
+![Intro](introvideo.mp4)
 
 # Obsidian BGTD Plugin
 
