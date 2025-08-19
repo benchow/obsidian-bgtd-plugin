@@ -319,13 +319,11 @@ export default class BGTDPlugin extends Plugin {
                 const cleanedText = currentText.replace(/✅\s+\d{4}-\d{2}-\d{2}$/g, '').trim();
                 
                 if (cleanedText !== currentText) {
-                    // Add a small delay to let Obsidian finish its DOM updates
-                    // !HACK: This is a hack to let Obsidian finish its DOM updates
-                    // TODO: Find a better way to do this
-                    setTimeout(() => {
+                    // Wait for the next render cycle after Obsidian's DOM updates
+                    requestAnimationFrame(() => {
                         taskTextSpan.textContent = " " + cleanedText;
                         console.log('Removed datestamp from task text:', cleanedText);
-                    }, 50); // 50ms delay
+                    });
                 }
             }
         }
