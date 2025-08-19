@@ -3,9 +3,14 @@ import { Plugin, TFile } from "obsidian";
 export default class BGTDPlugin extends Plugin {
     private isProcessing = false; // Flag to prevent infinite loops
     private fileChangeListener: any; // Store reference to file change event listener
+    private clickHandler: (event: Event) => void; // Store reference to click handler
 
     async onload() {
         console.log("BGTD Plugin loaded");
+
+        // Setup click handler to intercept task checkbox clicks
+        this.clickHandler = this.handleTaskClick.bind(this);
+        document.addEventListener("click", this.clickHandler, true); // Use capture phase
 
         // Listen for any Markdown file modification
         this.fileChangeListener = this.app.vault.on("modify", (file: TFile) => {
@@ -229,10 +234,100 @@ export default class BGTDPlugin extends Plugin {
         }
     }
 
+    /**
+     * Intercepts clicks on Obsidian task checkboxes to provide immediate visual feedback
+     */
+    private async handleTaskClick(event: Event) {
+        const target = event.target as HTMLElement;
+        
+        // Check if the clicked element is an Obsidian task checkbox
+        if (!target.classList.contains('task-list-item-checkbox')) {
+            return;
+        }
+
+        // Don't prevent default - let Obsidian handle the checkbox state change
+        // event.preventDefault();
+        // event.stopPropagation();
+        // event.stopImmediatePropagation();
+
+        // Find the parent task list item that contains the task text
+        const taskListItem = target.closest('.HyperMD-task-line') || target.closest('li');
+        if (!taskListItem) {
+            console.log("Could not find task list item parent");
+            return;
+        }
+        
+        // Get the current checkbox state from the DOM element
+        const checkbox = target as HTMLInputElement;
+        const currentCheckboxState = checkbox.getAttribute('data-task') === 'x';
+        
+        // Determine the new state (opposite of current checkbox state)
+        const newState = !currentCheckboxState;
+        
+        // Update the DOM to show/hide the datestamp immediately
+        this.updateDatestampInDOM(taskListItem, newState);
+    }
+
+    /**
+     * Updates the datestamp in the DOM without modifying the file
+     */
+    private updateDatestampInDOM(taskListItem: Element, isChecked: boolean) {
+        if (isChecked) {
+            // Task is being checked - add datestamp to DOM if not present
+            if (!taskListItem.querySelector('.bgtd-datestamp')) {
+                const date = this.getCurrentDate();
+                const datestampElement = document.createElement('span');
+                datestampElement.textContent = ` ✅ ${date}`;
+                datestampElement.style.color = '#22c55e'; // Green color for checkmark
+                datestampElement.className = 'bgtd-datestamp'; // Add class for easier identification
+                
+                // Find the task text content area - look for the actual text, not the container
+                // We want to append after the task text, not before the checkbox
+                let targetElement = taskListItem.querySelector('.cm-line') ||
+                                   taskListItem.querySelector('.HyperMD-task-line') ||
+                                   taskListItem.querySelector('.cm-content');
+                
+                // If we can't find a specific text container, look for the last text node
+                if (!targetElement) {
+                    // Find the last text-containing element in the list item
+                    const textElements = Array.from(taskListItem.querySelectorAll('*')).filter(el => 
+                        el.textContent && 
+                        el.textContent.trim() && 
+                        !el.classList.contains('task-list-item-checkbox') &&
+                        !el.classList.contains('bgtd-datestamp')
+                    );
+                    
+                    if (textElements.length > 0) {
+                        // Use the last text element (which should be the task description)
+                        targetElement = textElements[textElements.length - 1];
+                    } else {
+                        // Fallback to the list item itself
+                        targetElement = taskListItem;
+                    }
+                }
+                
+                // Append the datestamp to the target element
+                targetElement.appendChild(datestampElement);
+                
+                console.log('Added datestamp to DOM:', datestampElement.textContent);
+            }
+        } else {
+            // Task is being unchecked - remove datestamp from DOM if present
+            // Only remove our specifically marked datestamp element
+            const datestampElement = taskListItem.querySelector('.bgtd-datestamp');
+            if (datestampElement) {
+                datestampElement.remove();
+                console.log('Removed datestamp from DOM');
+            }
+            // Remove the aggressive fallback removal that was causing DOM corruption
+        }
+    }
+
     onunload() {
         console.log("BGTD Plugin unloaded");
         if (this.fileChangeListener) {
             this.app.vault.off("modify", this.fileChangeListener);
         }
+        document.removeEventListener("click", this.clickHandler, true); // Remove click handler on unload
     }
 }
